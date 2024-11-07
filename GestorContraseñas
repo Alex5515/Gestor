@@ -1,0 +1,97 @@
+import os
+import json
+from cryptography.fernet import Fernet # type: ignore
+from getpass import getpass
+
+# Ruta del archivo cifrado
+DATABASE_FILE = "passwords.db"
+KEY_FILE = "key.key"
+
+def generar_clave():
+    """Genera una clave para cifrar y descifrar datos."""
+    clave = Fernet.generate_key()
+    with open(KEY_FILE, "wb") as key_file:
+        key_file.write(clave)
+    return clave
+
+def cargar_clave():
+    """Carga la clave desde el archivo, o la genera si no existe."""
+    if not os.path.exists(KEY_FILE):
+        return generar_clave()
+    with open(KEY_FILE, "rb") as key_file:
+        return key_file.read()
+
+def cargar_datos(clave):
+    """Carga las contraseñas desde el archivo cifrado."""
+    if not os.path.exists(DATABASE_FILE):
+        return {}
+    with open(DATABASE_FILE, "rb") as file:
+        contenido_cifrado = file.read()
+    fernet = Fernet(clave)
+    try:
+        contenido = fernet.decrypt(contenido_cifrado).decode()
+        return json.loads(contenido)
+    except Exception as e:
+        print("[Error] No se pudo descifrar el archivo. Verifica tu clave.")
+        exit()
+
+def guardar_datos(clave, datos):
+    """Guarda las contraseñas cifradas en el archivo."""
+    contenido = json.dumps(datos).encode()
+    fernet = Fernet(clave)
+    contenido_cifrado = fernet.encrypt(contenido)
+    with open(DATABASE_FILE, "wb") as file:
+        file.write(contenido_cifrado)
+
+def agregar_contraseña(datos):
+    """Agrega una nueva contraseña."""
+    servicio = input("Nombre del servicio: ").strip()
+    usuario = input("Usuario: ").strip()
+    contraseña = getpass("Contraseña: ").strip()
+    datos[servicio] = {"usuario": usuario, "contraseña": contraseña}
+    print(f"[Info] Contraseña para {servicio} agregada con éxito.")
+
+def mostrar_contraseñas(datos):
+    """Muestra las contraseñas almacenadas."""
+    if not datos:
+        print("[Info] No hay contraseñas almacenadas.")
+        return
+    for servicio, credenciales in datos.items():
+        print(f"Servicio: {servicio}")
+        print(f"  Usuario: {credenciales['usuario']}")
+        print(f"  Contraseña: {credenciales['contraseña']}")
+
+def menu():
+    """Muestra el menú principal."""
+    print("\nGestor de Contraseñas - Offline")
+    print("1. Ver contraseñas")
+    print("2. Agregar contraseña")
+    print("3. Salir")
+
+def main():
+    # Cargar clave y base de datos
+    clave = cargar_clave()
+    datos = cargar_datos(clave)
+
+    # Solicitar contraseña maestra
+    contraseña_maestra = getpass("Introduce la contraseña maestra: ").strip()
+    if contraseña_maestra != "tu_contraseña_maestra":  # Cambia "tu_contraseña_maestra"
+        print("[Error] Contraseña maestra incorrecta.")
+        exit()
+
+    while True:
+        menu()
+        opcion = input("Selecciona una opción: ").strip()
+        if opcion == "1":
+            mostrar_contraseñas(datos)
+        elif opcion == "2":
+            agregar_contraseña(datos)
+            guardar_datos(clave, datos)
+        elif opcion == "3":
+            print("[Info] Cerrando el gestor.")
+            break
+        else:
+            print("[Error] Opción no válida.")
+
+if __name__ == "__main__":
+    main()
